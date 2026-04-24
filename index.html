@@ -139,17 +139,17 @@ function trail(x,y,col){
   parts.push(new Particle(x,y,rand(-15,15),rand(-15,15),col,0.12,rand(1,3)));
 }
 
-// ──────────────────────────────── STARS ──────────────────────────
+// ──────────────────────────────── STARS (horizontal, right→left) ─
 class Star{
   constructor(){ this.reset(true); }
   reset(any=false){
-    this.x=rand(0,canvas.width);
-    this.y=any?rand(0,canvas.height):0;
-    this.spd=rand(25,120); this.r=rand(0.4,1.8);
+    this.x=any?rand(0,canvas.width):canvas.width+2;
+    this.y=rand(0,canvas.height);
+    this.spd=rand(30,140); this.r=rand(0.4,1.8);
     this.bright=rand(0.25,0.9);
     this.col=['#ffffff','#ccccff','#aaaaff','#88aaff'][randInt(0,3)];
   }
-  update(dt){ this.y+=this.spd*dt; if(this.y>canvas.height) this.reset(); }
+  update(dt){ this.x-=this.spd*dt; if(this.x<-2) this.reset(); }
   draw(){
     ctx.save(); ctx.globalAlpha=this.bright;
     ctx.fillStyle=this.col; ctx.shadowBlur=3; ctx.shadowColor=this.col;
@@ -157,6 +157,9 @@ class Star{
     ctx.restore();
   }
 }
+
+// Distancia mínima que los enemigos mantienen del jugador
+const MIN_DIST = 200;
 
 // ──────────────────────────────── BULLETS ────────────────────────
 class PBullet{  // player bullet
@@ -207,8 +210,8 @@ class EBullet{  // enemy bullet
 // ──────────────────────────────── PLAYER ─────────────────────────
 class Player{
   constructor(){
-    this.x=canvas.width/2; this.y=canvas.height-100;
-    this.w=40; this.h=50;
+    this.x=120; this.y=canvas.height/2;
+    this.w=50; this.h=40;
     this.speed=280;
     this.hp=100; this.maxHp=100;
     this.dmg=20;
@@ -230,8 +233,8 @@ class Player{
     const len=Math.hypot(dx,dy)||1;
     if(dx||dy){ dx/=len; dy/=len; }
 
-    this.x=clamp(this.x+dx*this.speed*dt, this.w/2, canvas.width-this.w/2);
-    this.y=clamp(this.y+dy*this.speed*dt, this.h/2, canvas.height-this.h/2);
+    this.x=clamp(this.x+dx*this.speed*dt, 28, canvas.width-40);
+    this.y=clamp(this.y+dy*this.speed*dt, 28, canvas.height-28);
 
     this.fireCd-=dt;
     if((keys[' ']||mouseDown) && this.fireCd<=0){
@@ -239,15 +242,16 @@ class Player{
     }
     if(this.invFrames>0) this.invFrames-=dt;
     this.flame+=dt*18;
-    if(dx||dy) trail(this.x, this.y+this.h/2, C.purple);
+    if(dx||dy) trail(this.x-20, this.y, C.purple);
   }
 
   shoot(){
-    const spd=620;
+    const spd=660;
     SFX.shoot();
+    // a=0 → disparo recto a la derecha; a positivo → abajo; a negativo → arriba
     const mk=(a)=>{
-      const vx=Math.sin(a)*spd, vy=-Math.cos(a)*spd;
-      pBullets.push(new PBullet(this.x, this.y-this.h/2, vx, vy, this.dmg, this.piercing, this.homing));
+      const vx=Math.cos(a)*spd, vy=Math.sin(a)*spd;
+      pBullets.push(new PBullet(this.x+this.w/2, this.y, vx, vy, this.dmg, this.piercing, this.homing));
     };
     if(this.spreadShot)       [-0.35,-0.18,0,0.18,0.35].forEach(mk);
     else if(this.tripleShot)  [-0.22,0,0.22].forEach(mk);
@@ -278,39 +282,43 @@ class Player{
 
     ctx.save(); ctx.translate(this.x,this.y);
 
-    // Engine flames
+    // Llamas del motor (lado izquierdo, atrás de la nave)
     const fl=7+Math.sin(this.flame)*4;
-    [[-8,26],[8,26]].forEach(([ex,ey])=>{
-      const g=ctx.createRadialGradient(ex,ey,0,ex,ey,fl*2);
+    [[-24,-8],[-24,8]].forEach(([ex,ey])=>{
+      const g=ctx.createRadialGradient(ex,ey,0,ex,ey,fl*2.2);
       g.addColorStop(0,C.cyan); g.addColorStop(0.5,C.purple); g.addColorStop(1,'transparent');
       ctx.fillStyle=g;
-      ctx.beginPath(); ctx.ellipse(ex,ey,4,fl,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(ex,ey,fl,4,0,0,Math.PI*2); ctx.fill();
     });
 
     ctx.shadowBlur=20; ctx.shadowColor=C.cyan;
 
-    // Body
+    // Cuerpo principal (nave mira a la DERECHA)
     ctx.fillStyle='#180035'; ctx.strokeStyle=C.cyan; ctx.lineWidth=2;
     ctx.beginPath();
-    ctx.moveTo(0,-24); ctx.lineTo(14,8); ctx.lineTo(11,20); ctx.lineTo(-11,20); ctx.lineTo(-14,8);
+    ctx.moveTo(24,0);    // nariz (derecha)
+    ctx.lineTo(-8,14);   // parte inferior
+    ctx.lineTo(-20,11);  // motor inferior
+    ctx.lineTo(-20,-11); // motor superior
+    ctx.lineTo(-8,-14);  // parte superior
     ctx.closePath(); ctx.fill(); ctx.stroke();
 
-    // Wings
+    // Alas (arriba y abajo)
     ctx.shadowColor=C.purple;
-    [[12,4,30,18,27,24,9,14],[- 12,4,-30,18,-27,24,-9,14]].forEach(([x1,y1,x2,y2,x3,y3,x4,y4])=>{
+    [[-4,-13,-18,-30,-24,-27,-14,-9],[-4,13,-18,30,-24,27,-14,9]].forEach(([x1,y1,x2,y2,x3,y3,x4,y4])=>{
       ctx.fillStyle='#280055'; ctx.strokeStyle=C.purple; ctx.lineWidth=1.5;
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.lineTo(x4,y4);
       ctx.closePath(); ctx.fill(); ctx.stroke();
     });
 
-    // Wing neon stripes
+    // Franjas neon en las alas
     ctx.strokeStyle=C.pink; ctx.lineWidth=1; ctx.shadowColor=C.pink; ctx.shadowBlur=8;
-    ctx.beginPath(); ctx.moveTo(13,7); ctx.lineTo(25,18); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-13,7); ctx.lineTo(-25,18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-7,13); ctx.lineTo(-18,25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-7,-13); ctx.lineTo(-18,-25); ctx.stroke();
 
-    // Cockpit
+    // Cabina (hacia la nariz)
     ctx.fillStyle=C.cyan; ctx.shadowColor=C.cyan; ctx.shadowBlur=18;
-    ctx.beginPath(); ctx.ellipse(0,-6,5,9,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(6,0,9,5,0,0,Math.PI*2); ctx.fill();
 
     // Shield bubble
     if(this.shieldHp>0){
@@ -377,7 +385,7 @@ class Enemy{
     ctx.fillRect(this.x-w/2,this.y-this.sz-9,w*(this.hp/this.maxHp),h);
     ctx.restore();
   }
-  offScreen(){ return this.y>canvas.height+120||this.x<-120||this.x>canvas.width+120; }
+  offScreen(){ return this.x<-120||this.y<-120||this.y>canvas.height+120; }
 }
 
 // ─── DRONE ── fast mechanical hexagon ───────────────────────────
@@ -385,13 +393,20 @@ class Drone extends Enemy{
   constructor(x,y,w){
     const m=1+w*0.1;
     super(x,y,30*m, 80+w*10, C.cyan, 10+w*2, 18);
-    this.rotT=0; this.dirT=rand(1,2); this.mAng=Math.PI/2;
+    this.rotT=0; this.dirT=rand(1,2); this.mAng=Math.PI;
   }
   update(dt){
     this.dirT-=dt;
-    if(this.dirT<=0){ this.mAng=ang(this,player)+rand(-0.55,0.55); this.dirT=rand(1,2.5); }
+    if(this.dirT<=0){
+      const d=dist(this,player);
+      if(d < MIN_DIST) this.mAng=ang(player,this)+rand(-0.4,0.4); // aleja
+      else             this.mAng=ang(this,player)+rand(-0.5,0.5); // acerca
+      this.dirT=rand(1,2.5);
+    }
     this.x+=Math.cos(this.mAng)*this.spd*dt;
     this.y+=Math.sin(this.mAng)*this.spd*dt;
+    this.x=clamp(this.x, 30, canvas.width+100);
+    this.y=clamp(this.y, 20, canvas.height-20);
     this.rotT+=dt*2.2;
     this.shootT-=dt;
     if(this.shootT<=0){ this.shoot(); this.shootT=this.shootCd; }
@@ -429,11 +444,13 @@ class Interceptor extends Enemy{
   }
   update(dt){
     this.zigT+=dt;
-    this.y+=this.spd*0.6*dt;
-    this.x+=Math.sin(this.zigT*3+this.phase)*this.spd*dt;
-    this.x=clamp(this.x,22,canvas.width-22);
+    const d=dist(this,player);
+    if(d > MIN_DIST) this.x-=this.spd*0.6*dt; // avanza hacia la izquierda
+    else             this.x+=this.spd*0.4*dt;  // retrocede si está muy cerca
+    this.y+=Math.sin(this.zigT*3+this.phase)*this.spd*dt; // zigzag vertical
+    this.y=clamp(this.y,22,canvas.height-22);
     this.shootT-=dt;
-    if(this.shootT<=0&&this.y>55){ this.shoot(); this.shootT=this.shootCd; }
+    if(this.shootT<=0&&this.x<canvas.width-30){ this.shoot(); this.shootT=this.shootCd; }
     if(this.flashT>0) this.flashT-=dt;
   }
   shoot(){
@@ -464,11 +481,14 @@ class Cruiser extends Enemy{
     this.phase=rand(0,Math.PI*2); this.shootCd=2.8;
   }
   update(dt){
-    this.y+=this.spd*0.4*dt;
-    this.x+=Math.sin(Date.now()*0.001+this.phase)*50*dt;
-    this.x=clamp(this.x,55,canvas.width-55);
+    const d=dist(this,player);
+    if(d > MIN_DIST+40) this.x-=this.spd*0.4*dt;
+    else                this.x+=this.spd*0.2*dt;
+    this.y+=Math.sin(Date.now()*0.001+this.phase)*50*dt;
+    this.y=clamp(this.y,55,canvas.height-55);
+    this.x=clamp(this.x,60,canvas.width+100);
     this.shootT-=dt;
-    if(this.shootT<=0&&this.y>85){ this.shoot(); this.shootT=this.shootCd; }
+    if(this.shootT<=0&&this.x<canvas.width-40){ this.shoot(); this.shootT=this.shootCd; }
     if(this.flashT>0) this.flashT-=dt;
   }
   shoot(){
@@ -502,14 +522,22 @@ class Cruiser extends Enemy{
 class Swarm extends Enemy{
   constructor(x,y,w){
     super(x,y,10+w*2, 120+w*20, C.green, 8+w, 10);
-    this.wobble=rand(0,Math.PI*2); this.mAng=Math.PI/2;
+    this.wobble=rand(0,Math.PI*2); this.mAng=Math.PI;
   }
   update(dt){
     this.wobble+=dt*5;
-    const a=ang(this,player);
-    this.mAng=lerp(this.mAng,a,dt*3);
-    this.x+=Math.cos(this.mAng)*this.spd*dt+Math.sin(this.wobble)*28*dt;
+    const d=dist(this,player);
+    if(d > MIN_DIST-20){
+      const a=ang(this,player);
+      this.mAng=lerp(this.mAng,a,dt*3);
+    } else {
+      // Aleja cuando está muy cerca
+      const a=ang(player,this);
+      this.mAng=lerp(this.mAng,a,dt*4);
+    }
+    this.x+=Math.cos(this.mAng)*this.spd*dt+Math.sin(this.wobble)*22*dt;
     this.y+=Math.sin(this.mAng)*this.spd*dt;
+    this.y=clamp(this.y,15,canvas.height-15);
     if(this.flashT>0) this.flashT-=dt;
   }
   draw(){
@@ -539,17 +567,20 @@ class Behemoth extends Enemy{
     this.wave=w;
   }
   update(dt){
-    this.y+=this.spd*0.3*dt;
-    this.x+=Math.sin(Date.now()*0.0008+this.phase)*60*dt;
-    this.x=clamp(this.x,65,canvas.width-65);
+    const d=dist(this,player);
+    if(d > MIN_DIST+60) this.x-=this.spd*0.3*dt;
+    else                this.x+=this.spd*0.15*dt;
+    this.y+=Math.sin(Date.now()*0.0008+this.phase)*55*dt;
+    this.y=clamp(this.y,65,canvas.height-65);
+    this.x=clamp(this.x,60,canvas.width+120);
     this.tentacles.forEach(t=>t.w+=dt*2);
     this.spawnT-=dt;
-    if(this.spawnT<=0&&this.y>55&&enemies.filter(e=>e.alive).length<28){
-      enemies.push(new Swarm(this.x+rand(-25,25),this.y+25,this.wave));
+    if(this.spawnT<=0&&this.x<canvas.width-50&&enemies.filter(e=>e.alive).length<28){
+      enemies.push(new Swarm(this.x+rand(-25,25),this.y+rand(-25,25),this.wave));
       this.spawnT=this.spawnCd;
     }
     this.shootT-=dt;
-    if(this.shootT<=0&&this.y>85){ this.shoot(); this.shootT=this.shootCd; }
+    if(this.shootT<=0&&this.x<canvas.width-50){ this.shoot(); this.shootT=this.shootCd; }
     if(this.flashT>0) this.flashT-=dt;
   }
   shoot(){
@@ -594,9 +625,9 @@ class Behemoth extends Enemy{
 class Boss extends Enemy{
   constructor(w){
     const isEven=w%2===0;
-    super(canvas.width/2,-120, 500+w*120, 55, isEven?C.purple:C.orange, 500+w*100, 62);
+    super(canvas.width+120, canvas.height/2, 500+w*120, 55, isEven?C.purple:C.orange, 500+w*100, 62);
     this.wave=w; this.phase=1; this.entering=true;
-    this.targetX=canvas.width/2; this.targetY=130;
+    this.targetX=canvas.width-220; this.targetY=canvas.height/2;
     this.attackT=3; this.attackCd=2.2; this.attackIdx=0;
     this.rotT=0; this.isBoss=true;
     this.name=isEven?'CYBER LEVIATHAN':'VOID TITAN';
@@ -609,11 +640,14 @@ class Boss extends Enemy{
       if(Math.abs(this.y-this.targetY)<4){ this.y=this.targetY; this.entering=false; }
       return;
     }
-    this.targetX=canvas.width/2+Math.sin(Date.now()*0.0012)*210;
+    this.targetX=(canvas.width-220)+Math.sin(Date.now()*0.0008)*80;
     this.x=lerp(this.x,this.targetX,dt*1.4);
     if(this.phase===2){
-      this.targetY=130+Math.sin(Date.now()*0.0014)*80;
+      this.targetY=canvas.height/2+Math.sin(Date.now()*0.0014)*200;
       this.y=lerp(this.y,this.targetY,dt*1.4);
+    } else {
+      this.targetY=canvas.height/2+Math.sin(Date.now()*0.0010)*140;
+      this.y=lerp(this.y,this.targetY,dt*1.2);
     }
     this.attackT-=dt;
     if(this.attackT<=0){ this.attack(); this.attackT=this.attackCd; this.attackIdx++; }
@@ -770,7 +804,7 @@ function pickUpgrades(n=3){
 function spawnWave(w){
   enemies=[]; eBullets=[];
   waveDone=false; waveDoneT=0; waveClearT=0;
-  if(w%5===0){
+  if(w%10===0){
     boss=null;
     gameState=STATE.BOSS_WARN;
     bossWarnT=3.5;
@@ -783,11 +817,14 @@ function spawnWave(w){
 function doSpawnNormal(w){
   const list=[];
   const add=(n,fn)=>{ for(let i=0;i<n;i++) list.push(fn); };
-  add(3+Math.floor(w*1.5), ()=>new Drone(rand(50,canvas.width-50),rand(-220,-40),w));
-  if(w>=2) add(Math.floor(w*0.8), ()=>new Interceptor(rand(50,canvas.width-50),rand(-220,-40),w));
-  if(w>=3) add(Math.floor(w*0.45),()=>new Cruiser(rand(80,canvas.width-80),rand(-320,-80),w));
-  if(w>=2) add(Math.floor(w*1.2), ()=>new Swarm(rand(50,canvas.width-50),rand(-160,-20),w));
-  if(w>=4) add(Math.floor(w*0.3), ()=>new Behemoth(rand(100,canvas.width-100),rand(-420,-150),w));
+  // Enemigos spawnan desde el lado DERECHO
+  const rx=()=>rand(canvas.width+50, canvas.width+300);
+  const ry=()=>rand(40, canvas.height-40);
+  add(3+Math.floor(w*1.5), ()=>new Drone(rx(),ry(),w));
+  if(w>=2) add(Math.floor(w*0.8), ()=>new Interceptor(rx(),ry(),w));
+  if(w>=3) add(Math.floor(w*0.45),()=>new Cruiser(rx(),ry(),w));
+  if(w>=2) add(Math.floor(w*1.2), ()=>new Swarm(rx(),ry(),w));
+  if(w>=4) add(Math.floor(w*0.3), ()=>new Behemoth(rx(),ry(),w));
   list.sort(()=>Math.random()-0.5);
   list.forEach((fn,i)=>setTimeout(()=>{ if(gameState===STATE.PLAYING) enemies.push(fn()); },i*420));
 }
@@ -913,7 +950,7 @@ function drawUpgrade(){
     ctx.restore();
   });
 
-  const nextBoss=(wave+1)%5===0;
+  const nextBoss=(wave+1)%10===0;
   if(nextBoss){
     const pp=0.7+0.3*Math.sin(Date.now()*0.006);
     ctx.save(); ctx.globalAlpha=pp;
@@ -931,7 +968,7 @@ function drawBossWarn(){
   ctx.save(); ctx.globalAlpha=p;
   neon('⚠  ALERTA DE BOSS  ⚠', canvas.width/2, canvas.height/2-30, C.red, 38);
   ctx.restore();
-  const bossNum=Math.ceil(wave/5);
+  const bossNum=Math.ceil(wave/10);
   neon(`BOSS #${bossNum}`, canvas.width/2, canvas.height/2+35, C.orange, 20);
   neon(`${Math.ceil(bossWarnT)}`, canvas.width/2, canvas.height/2+88, C.white, 44);
 }
@@ -1006,7 +1043,7 @@ function checkWave(){
     }
     return;
   }
-  const isBossWave=wave%5===0 && boss!==null;
+  const isBossWave=wave%10===0 && boss!==null;
   if(isBossWave){
     if(boss&&!boss.alive&&!waveDone){ waveDone=true; waveDoneT=2; waveClearT=2; }
   } else {
