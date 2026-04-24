@@ -754,10 +754,13 @@ function pickUpgrades(n=3){
 // ──────────────────────────────── WAVE SPAWNING ──────────────────
 function spawnWave(w){
   enemies=[]; eBullets=[];
+  waveDone=false; waveDoneT=0; waveClearT=0;
   if(w%5===0){
+    boss=null;
     gameState=STATE.BOSS_WARN;
     bossWarnT=3.5;
   } else {
+    boss=null;
     doSpawnNormal(w);
   }
 }
@@ -988,7 +991,7 @@ function checkWave(){
     }
     return;
   }
-  const isBossWave=wave%5===0&&boss;
+  const isBossWave=wave%5===0 && boss!==null;
   if(isBossWave){
     if(boss&&!boss.alive&&!waveDone){ waveDone=true; waveDoneT=2; waveClearT=2; }
   } else {
@@ -1044,9 +1047,9 @@ function loop(ts){
 
   ctx.fillStyle='#000010'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Screen shake
-  let sx=0,sy=0;
-  if(shakeDur>0){ shakeDur-=dt; sx=(Math.random()-0.5)*shakeMag*2; sy=(Math.random()-0.5)*shakeMag*2; ctx.save(); ctx.translate(sx,sy); }
+  // Screen shake — guardamos el flag ANTES de decrementar para balancear save/restore
+  const wasShaking = shakeDur > 0;
+  if(wasShaking){ shakeDur-=dt; const m=shakeMag; ctx.save(); ctx.translate((Math.random()-0.5)*m*2,(Math.random()-0.5)*m*2); }
 
   stars.forEach(s=>s.update(dt));
 
@@ -1063,6 +1066,8 @@ function loop(ts){
     checkWave();
     if(waveClearT>0) waveClearT-=dt;
 
+    // Estrellas de fondo en el estado de juego
+    stars.forEach(s=>s.draw());
     parts.forEach(p=>p.draw());
     pBullets.forEach(b=>b.draw());
     eBullets.forEach(b=>b.draw());
@@ -1094,7 +1099,7 @@ function loop(ts){
     drawGameOver();
   }
 
-  if(shakeDur>0) ctx.restore();
+  if(wasShaking) ctx.restore();
   requestAnimationFrame(loop);
 }
 
