@@ -159,7 +159,9 @@ class Star{
 }
 
 // Distancia mínima que los enemigos mantienen del jugador
-const MIN_DIST = 200;
+const MIN_DIST = 160;
+// Límite izquierdo que los enemigos NO pueden cruzar (~mitad de pantalla)
+const ENEMY_MIN_X = Math.floor(canvas.width * 0.46);
 
 // ──────────────────────────────── BULLETS ────────────────────────
 class PBullet{  // player bullet
@@ -391,21 +393,24 @@ class Enemy{
 // ─── DRONE ── fast mechanical hexagon ───────────────────────────
 class Drone extends Enemy{
   constructor(x,y,w){
-    const m=1+w*0.1;
-    super(x,y,30*m, 80+w*10, C.cyan, 10+w*2, 18);
-    this.rotT=0; this.dirT=rand(1,2); this.mAng=Math.PI;
+    const m=1+w*0.15;
+    super(x,y,35*m, 100+w*14, C.cyan, 10+w*2, 18);
+    this.rotT=0; this.dirT=rand(0.8,1.8); this.mAng=Math.PI;
+    this.shootCd=Math.max(0.8, 2.2-w*0.08);
   }
   update(dt){
     this.dirT-=dt;
     if(this.dirT<=0){
       const d=dist(this,player);
-      if(d < MIN_DIST) this.mAng=ang(player,this)+rand(-0.4,0.4); // aleja
-      else             this.mAng=ang(this,player)+rand(-0.5,0.5); // acerca
-      this.dirT=rand(1,2.5);
+      if(d < MIN_DIST || this.x <= ENEMY_MIN_X+20)
+        this.mAng=ang(player,this)+rand(-0.35,0.35); // aleja o rebota
+      else
+        this.mAng=ang(this,player)+rand(-0.45,0.45); // acerca
+      this.dirT=rand(0.8,2);
     }
     this.x+=Math.cos(this.mAng)*this.spd*dt;
     this.y+=Math.sin(this.mAng)*this.spd*dt;
-    this.x=clamp(this.x, 30, canvas.width+100);
+    this.x=clamp(this.x, ENEMY_MIN_X, canvas.width+100);
     this.y=clamp(this.y, 20, canvas.height-20);
     this.rotT+=dt*2.2;
     this.shootT-=dt;
@@ -438,17 +443,19 @@ class Drone extends Enemy{
 // ─── INTERCEPTOR ── fast zigzag pink ship ───────────────────────
 class Interceptor extends Enemy{
   constructor(x,y,w){
-    const m=1+w*0.1;
-    super(x,y,20*m, 200+w*15, C.pink, 20+w*3, 15);
-    this.zigT=0; this.phase=rand(0,Math.PI*2); this.shootCd*=0.7;
+    const m=1+w*0.15;
+    super(x,y,22*m, 220+w*18, C.pink, 20+w*3, 15);
+    this.zigT=0; this.phase=rand(0,Math.PI*2);
+    this.shootCd=Math.max(0.6, 1.8-w*0.06);
   }
   update(dt){
     this.zigT+=dt;
     const d=dist(this,player);
-    if(d > MIN_DIST) this.x-=this.spd*0.6*dt; // avanza hacia la izquierda
-    else             this.x+=this.spd*0.4*dt;  // retrocede si está muy cerca
-    this.y+=Math.sin(this.zigT*3+this.phase)*this.spd*dt; // zigzag vertical
+    if(d > MIN_DIST && this.x > ENEMY_MIN_X+15) this.x-=this.spd*0.65*dt;
+    else if(this.x <= ENEMY_MIN_X+15)            this.x+=this.spd*0.5*dt;
+    this.y+=Math.sin(this.zigT*3+this.phase)*this.spd*dt;
     this.y=clamp(this.y,22,canvas.height-22);
+    this.x=clamp(this.x,ENEMY_MIN_X,canvas.width+100);
     this.shootT-=dt;
     if(this.shootT<=0&&this.x<canvas.width-30){ this.shoot(); this.shootT=this.shootCd; }
     if(this.flashT>0) this.flashT-=dt;
@@ -482,11 +489,11 @@ class Cruiser extends Enemy{
   }
   update(dt){
     const d=dist(this,player);
-    if(d > MIN_DIST+40) this.x-=this.spd*0.4*dt;
-    else                this.x+=this.spd*0.2*dt;
-    this.y+=Math.sin(Date.now()*0.001+this.phase)*50*dt;
+    if(d > MIN_DIST+30 && this.x > ENEMY_MIN_X+20) this.x-=this.spd*0.45*dt;
+    else if(this.x <= ENEMY_MIN_X+20)               this.x+=this.spd*0.25*dt;
+    this.y+=Math.sin(Date.now()*0.001+this.phase)*55*dt;
     this.y=clamp(this.y,55,canvas.height-55);
-    this.x=clamp(this.x,60,canvas.width+100);
+    this.x=clamp(this.x,ENEMY_MIN_X,canvas.width+100);
     this.shootT-=dt;
     if(this.shootT<=0&&this.x<canvas.width-40){ this.shoot(); this.shootT=this.shootCd; }
     if(this.flashT>0) this.flashT-=dt;
@@ -494,7 +501,7 @@ class Cruiser extends Enemy{
   shoot(){
     const base=ang(this,player);
     [-0.32,0,0.32].forEach(off=>{
-      eBullets.push(new EBullet(this.x,this.y,Math.cos(base+off)*185,Math.sin(base+off)*185,C.blue));
+      eBullets.push(new EBullet(this.x,this.y,Math.cos(base+off)*200,Math.sin(base+off)*200,C.blue));
     });
     SFX.hit();
   }
@@ -568,11 +575,11 @@ class Behemoth extends Enemy{
   }
   update(dt){
     const d=dist(this,player);
-    if(d > MIN_DIST+60) this.x-=this.spd*0.3*dt;
-    else                this.x+=this.spd*0.15*dt;
+    if(d > MIN_DIST+50 && this.x > ENEMY_MIN_X+30) this.x-=this.spd*0.35*dt;
+    else if(this.x <= ENEMY_MIN_X+30)               this.x+=this.spd*0.2*dt;
     this.y+=Math.sin(Date.now()*0.0008+this.phase)*55*dt;
     this.y=clamp(this.y,65,canvas.height-65);
-    this.x=clamp(this.x,60,canvas.width+120);
+    this.x=clamp(this.x,ENEMY_MIN_X,canvas.width+120);
     this.tentacles.forEach(t=>t.w+=dt*2);
     this.spawnT-=dt;
     if(this.spawnT<=0&&this.x<canvas.width-50&&enemies.filter(e=>e.alive).length<28){
@@ -820,13 +827,15 @@ function doSpawnNormal(w){
   // Enemigos spawnan desde el lado DERECHO
   const rx=()=>rand(canvas.width+50, canvas.width+300);
   const ry=()=>rand(40, canvas.height-40);
-  add(3+Math.floor(w*1.5), ()=>new Drone(rx(),ry(),w));
-  if(w>=2) add(Math.floor(w*0.8), ()=>new Interceptor(rx(),ry(),w));
-  if(w>=3) add(Math.floor(w*0.45),()=>new Cruiser(rx(),ry(),w));
-  if(w>=2) add(Math.floor(w*1.2), ()=>new Swarm(rx(),ry(),w));
-  if(w>=4) add(Math.floor(w*0.3), ()=>new Behemoth(rx(),ry(),w));
+  add(4+Math.floor(w*1.8), ()=>new Drone(rx(),ry(),w));
+  if(w>=2) add(Math.floor(w*1.1),  ()=>new Interceptor(rx(),ry(),w));
+  if(w>=3) add(Math.floor(w*0.6),  ()=>new Cruiser(rx(),ry(),w));
+  if(w>=2) add(Math.floor(w*1.5),  ()=>new Swarm(rx(),ry(),w));
+  if(w>=4) add(Math.floor(w*0.4),  ()=>new Behemoth(rx(),ry(),w));
   list.sort(()=>Math.random()-0.5);
-  list.forEach((fn,i)=>setTimeout(()=>{ if(gameState===STATE.PLAYING) enemies.push(fn()); },i*420));
+  // Spawn más rápido a medida que suben las oleadas
+  const delay=Math.max(120, 360-w*15);
+  list.forEach((fn,i)=>setTimeout(()=>{ if(gameState===STATE.PLAYING) enemies.push(fn()); },i*delay));
 }
 
 // ──────────────────────────────── COLLISIONS ─────────────────────
@@ -974,23 +983,61 @@ function drawBossWarn(){
 }
 
 function drawGameOver(){
-  ctx.fillStyle='rgba(0,0,12,0.93)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Reset completo del estado del canvas antes de dibujar
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#000015';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
   stars.forEach(s=>s.draw());
-  neon('GAME OVER',             canvas.width/2, canvas.height/2-95, C.red,    54);
-  neon(`OLEADA ALCANZADA: ${wave}`, canvas.width/2, canvas.height/2-18, C.white,  15);
-  neon(`PUNTAJE FINAL: ${score}`,  canvas.width/2, canvas.height/2+24, C.yellow, 20);
-  if(score>=highScore&&score>0){
-    const pp=0.8+0.2*Math.sin(Date.now()*0.007);
-    ctx.save(); ctx.globalAlpha=pp;
-    neon('¡NUEVO RECORD!', canvas.width/2, canvas.height/2+72, C.green, 22);
-    ctx.restore();
+
+  const cx=canvas.width/2, cy=canvas.height/2;
+
+  // GAME OVER
+  ctx.globalAlpha=1;
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font='bold 60px Orbitron, monospace';
+  ctx.shadowBlur=35; ctx.shadowColor=C.red;
+  ctx.fillStyle=C.red;
+  ctx.fillText('GAME OVER', cx, cy-90);
+
+  // Oleada
+  ctx.font='bold 16px Orbitron, monospace';
+  ctx.shadowBlur=12; ctx.shadowColor=C.white;
+  ctx.fillStyle=C.white;
+  ctx.fillText('OLEADA ALCANZADA:  ' + wave, cx, cy-22);
+
+  // Puntaje
+  ctx.font='bold 26px Orbitron, monospace';
+  ctx.shadowBlur=18; ctx.shadowColor=C.yellow;
+  ctx.fillStyle=C.yellow;
+  ctx.fillText('PUNTAJE:  ' + score, cx, cy+24);
+
+  // Record
+  if(score>0 && score>=highScore){
+    ctx.font='bold 24px Orbitron, monospace';
+    ctx.shadowBlur=25; ctx.shadowColor=C.green;
+    ctx.fillStyle=C.green;
+    ctx.globalAlpha=0.85+0.15*Math.sin(Date.now()*0.007);
+    ctx.fillText('¡NUEVO RECORD!', cx, cy+75);
+    ctx.globalAlpha=1;
   } else {
-    neon(`MEJOR PUNTAJE: ${highScore}`, canvas.width/2, canvas.height/2+72, C.cyan, 14);
+    ctx.font='bold 14px Orbitron, monospace';
+    ctx.shadowBlur=12; ctx.shadowColor=C.cyan;
+    ctx.fillStyle=C.cyan;
+    ctx.fillText('MEJOR PUNTAJE:  ' + highScore, cx, cy+75);
   }
-  const pp=0.65+0.35*Math.sin(Date.now()*0.004);
-  ctx.save(); ctx.globalAlpha=pp;
-  neon('PRESIONA  ENTER  O  ESPACIO  PARA  REINICIAR', canvas.width/2, canvas.height/2+128, C.white, 12);
-  ctx.restore();
+
+  // Reiniciar
+  ctx.font='bold 13px Orbitron, monospace';
+  ctx.shadowBlur=8; ctx.shadowColor=C.white;
+  ctx.fillStyle=C.white;
+  ctx.globalAlpha=0.65+0.35*Math.sin(Date.now()*0.004);
+  ctx.fillText('PRESIONA  ENTER  O  ESPACIO  PARA  REINICIAR', cx, cy+130);
+  ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
+  ctx.textBaseline='alphabetic';
 }
 
 function drawHUD(){
@@ -1163,8 +1210,7 @@ function loop(ts){
 
   else if(gameState===STATE.GAME_OVER){
     parts.forEach(p=>{ p.update(dt); p.draw(); }); parts=parts.filter(p=>!p.dead());
-    stars.forEach(s=>s.draw());
-    drawGameOver();
+    drawGameOver(); // drawGameOver ya dibuja las estrellas internamente
   }
 
   if(wasShaking) ctx.restore();
