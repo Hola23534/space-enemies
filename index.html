@@ -66,6 +66,21 @@ const rand    = (lo,hi) => Math.random()*(hi-lo)+lo;
 const randInt = (lo,hi) => Math.floor(rand(lo,hi+1));
 const ang     = (a,b) => Math.atan2(b.y-a.y, b.x-a.x);
 
+// Polyfill de roundRect para navegadores que no lo soportan
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
 // ──────────────────────────────── AUDIO ──────────────────────────
 const AC = new (window.AudioContext||window.webkitAudioContext)();
 function resumeAC(){ if(AC.state==='suspended') AC.resume(); }
@@ -870,10 +885,10 @@ function drawUpgrade(){
     ctx.fillStyle=hov?`${u.col}22`:'#08001e';
     ctx.strokeStyle=u.col; ctx.lineWidth=hov?3:2;
     ctx.shadowBlur=hov?35:12; ctx.shadowColor=u.col;
-    ctx.beginPath(); ctx.roundRect(cx,cy,cw,ch,12); ctx.fill(); ctx.stroke();
+    roundRect(cx,cy,cw,ch,12); ctx.fill(); ctx.stroke();
     // Icon bg
     ctx.fillStyle=`${u.col}18`;
-    ctx.beginPath(); ctx.roundRect(cx+10,cy+10,cw-20,100,8); ctx.fill();
+    roundRect(cx+10,cy+10,cw-20,100,8); ctx.fill();
     // Icon
     ctx.font='bold 28px Orbitron,monospace'; ctx.textAlign='center';
     ctx.fillStyle=u.col; ctx.shadowBlur=22; ctx.shadowColor=u.col;
@@ -958,7 +973,7 @@ function drawHUD(){
 
 // ──────────────────────────────── GAME STATE VARS ────────────────
 let gameState, player, parts, pBullets, eBullets, enemies, stars, boss;
-let wave, score, highScore, upgradeOpts, bossWarnT, waveClearT;
+let wave, score, highScore, upgradeOpts, bossWarnT, waveClearT, gameOverPending=false;
 let keys={}, mouseDown=false, mouseX=0, mouseY=0;
 
 highScore=parseInt(localStorage.getItem('spaceEnemiesHS')||'0');
@@ -1043,17 +1058,32 @@ stars=Array.from({length:160},()=>new Star());
 gameState=STATE.MENU;
 
 function loop(ts){
+  // requestAnimationFrame siempre se llama, aunque haya error interno
+  requestAnimationFrame(loop);
+
   const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
 
+  // Reset defensivo del estado del canvas al inicio de cada frame
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=1;
+
+  try {
   ctx.fillStyle='#000010'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
   // Screen shake — guardamos el flag ANTES de decrementar para balancear save/restore
   const wasShaking = shakeDur > 0;
-  if(wasShaking){ shakeDur-=dt; const m=shakeMag; ctx.save(); ctx.translate((Math.random()-0.5)*m*2,(Math.random()-0.5)*m*2); }
+  if(wasShaking){
+    shakeDur-=dt;
+    const m=shakeMag;
+    ctx.save();
+    ctx.translate((Math.random()-0.5)*m*2, (Math.random()-0.5)*m*2);
+  }
 
   stars.forEach(s=>s.update(dt));
 
-  if(gameState===STATE.MENU){ drawMenu(); }
+  if(gameState===STATE.MENU){
+    drawMenu();
+  }
 
   else if(gameState===STATE.PLAYING){
     player.update(dt);
@@ -1061,12 +1091,11 @@ function loop(ts){
     eBullets.forEach(b=>b.update(dt)); eBullets=eBullets.filter(b=>b.alive&&!b.offScreen());
     enemies.forEach(e=>e.update(dt));  enemies=enemies.filter(e=>e.alive&&!e.offScreen());
     if(boss&&boss.alive) boss.update(dt);
-    parts.forEach(p=>p.update(dt));    parts=parts.filter(p=>!p.dead());
+    parts.forEach(p=>p.update(dt)); parts=parts.filter(p=>!p.dead());
     collisions();
     checkWave();
     if(waveClearT>0) waveClearT-=dt;
 
-    // Estrellas de fondo en el estado de juego
     stars.forEach(s=>s.draw());
     parts.forEach(p=>p.draw());
     pBullets.forEach(b=>b.draw());
@@ -1078,32 +1107,35 @@ function loop(ts){
 
     if(!player.alive){
       if(score>highScore){ highScore=score; localStorage.setItem('spaceEnemiesHS',highScore); }
-      setTimeout(()=>{ gameState=STATE.GAME_OVER; },1600);
+      // Flag para no llamar setTimeout multiples veces por frame
+      if(!gameOverPending){ gameOverPending=true; setTimeout(()=>{ gameState=STATE.GAME_OVER; gameOverPending=false; },1600); }
     }
   }
 
   else if(gameState===STATE.BOSS_WARN){
     parts.forEach(p=>{ p.update(dt); p.draw(); }); parts=parts.filter(p=>!p.dead());
+    stars.forEach(s=>s.draw());
     bossWarnT-=dt;
     if(bossWarnT<=0){ gameState=STATE.PLAYING; boss=new Boss(wave); SFX.bossWarn(); }
     else drawBossWarn();
   }
 
   else if(gameState===STATE.UPGRADE){
-    stars.forEach(s=>s.update(dt));
     drawUpgrade();
   }
 
   else if(gameState===STATE.GAME_OVER){
     parts.forEach(p=>{ p.update(dt); p.draw(); }); parts=parts.filter(p=>!p.dead());
+    stars.forEach(s=>s.draw());
     drawGameOver();
   }
 
   if(wasShaking) ctx.restore();
-  requestAnimationFrame(loop);
+  } catch(e){ console.error('Loop error:', e); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; }
 }
 
 requestAnimationFrame(loop);
 </script>
+
 </body>
 </html>
