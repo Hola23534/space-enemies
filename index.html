@@ -387,7 +387,7 @@ class Enemy{
     ctx.fillRect(this.x-w/2,this.y-this.sz-9,w*(this.hp/this.maxHp),h);
     ctx.restore();
   }
-  offScreen(){ return this.x<-120||this.y<-120||this.y>canvas.height+120; }
+  offScreen(){ return this.x<-80||this.y<-80||this.y>canvas.height+80||this.x>canvas.width+400; }
 }
 
 // ─── DRONE ── fast mechanical hexagon ───────────────────────────
@@ -395,7 +395,7 @@ class Drone extends Enemy{
   constructor(x,y,w){
     const m=1+w*0.15;
     super(x,y,35*m, 100+w*14, C.cyan, 10+w*2, 18);
-    this.rotT=0; this.dirT=rand(0.8,1.8); this.mAng=Math.PI;
+    this.rotT=0; this.dirT=rand(0.8,1.6); this.mAng=Math.PI; // apunta izquierda al inicio
     this.shootCd=Math.max(0.8, 2.2-w*0.08);
   }
   update(dt){
@@ -529,7 +529,7 @@ class Cruiser extends Enemy{
 class Swarm extends Enemy{
   constructor(x,y,w){
     super(x,y,10+w*2, 120+w*20, C.green, 8+w, 10);
-    this.wobble=rand(0,Math.PI*2); this.mAng=Math.PI;
+    this.wobble=rand(0,Math.PI*2); this.mAng=Math.PI; // apunta izquierda al inicio
   }
   update(dt){
     this.wobble+=dt*5;
@@ -824,17 +824,17 @@ function spawnWave(w){
 function doSpawnNormal(w){
   const list=[];
   const add=(n,fn)=>{ for(let i=0;i<n;i++) list.push(fn); };
-  // Enemigos spawnan desde el lado DERECHO
-  const rx=()=>rand(canvas.width+50, canvas.width+300);
-  const ry=()=>rand(40, canvas.height-40);
+  // Spawn justo fuera del borde derecho — rango pequeño para que entren rápido
+  const rx=()=>rand(canvas.width+10, canvas.width+60);
+  const ry=()=>rand(50, canvas.height-50);
   add(4+Math.floor(w*1.8), ()=>new Drone(rx(),ry(),w));
   if(w>=2) add(Math.floor(w*1.1),  ()=>new Interceptor(rx(),ry(),w));
   if(w>=3) add(Math.floor(w*0.6),  ()=>new Cruiser(rx(),ry(),w));
   if(w>=2) add(Math.floor(w*1.5),  ()=>new Swarm(rx(),ry(),w));
   if(w>=4) add(Math.floor(w*0.4),  ()=>new Behemoth(rx(),ry(),w));
   list.sort(()=>Math.random()-0.5);
-  // Spawn más rápido a medida que suben las oleadas
-  const delay=Math.max(120, 360-w*15);
+  // Delay reducido: máximo 250ms entre enemigos, disminuye con oleadas
+  const delay=Math.max(80, 250-w*10);
   list.forEach((fn,i)=>setTimeout(()=>{ if(gameState===STATE.PLAYING) enemies.push(fn()); },i*delay));
 }
 
